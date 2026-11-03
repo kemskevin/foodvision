@@ -1,0 +1,31 @@
+{
+  "title": "FoodVision - MLOps",
+  "uid": "foodvision",
+  "schemaVersion": 39,
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "10s",
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "Requêtes / s par déploiement",
+     "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+     "targets": [{"refId": "A", "expr": "sum by (deployment) (rate(api_predictions_total[1m]))", "legendFormat": "{{deployment}}"}]},
+    {"id": 2, "type": "timeseries", "title": "Latence p95 (s)",
+     "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+     "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, deployment) (rate(api_prediction_latency_seconds_bucket[1m])))", "legendFormat": "{{deployment}}"}]},
+    {"id": 3, "type": "timeseries", "title": "Taux d'erreur",
+     "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+     "targets": [{"refId": "A", "expr": "sum by (deployment) (rate(api_predictions_total{status!=\"200\"}[5m])) / clamp_min(sum by (deployment) (rate(api_predictions_total[5m])), 1e-9)", "legendFormat": "{{deployment}}"}]},
+    {"id": 4, "type": "timeseries", "title": "Confiance moyenne du modèle",
+     "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+     "targets": [{"refId": "A", "expr": "sum by (deployment, model_version) (rate(api_prediction_confidence_sum[5m])) / sum by (deployment, model_version) (rate(api_prediction_confidence_count[5m]))", "legendFormat": "{{deployment}} {{model_version}}"}]},
+    {"id": 5, "type": "stat", "title": "Drift détecté (1 = oui)",
+     "gridPos": {"x": 0, "y": 16, "w": 8, "h": 6},
+     "targets": [{"refId": "A", "expr": "drift_dataset_drift"}]},
+    {"id": 6, "type": "stat", "title": "Part des features en drift",
+     "gridPos": {"x": 8, "y": 16, "w": 8, "h": 6},
+     "fieldConfig": {"defaults": {"unit": "percentunit"}},
+     "targets": [{"refId": "A", "expr": "drift_share_of_drifted_columns"}]},
+    {"id": 7, "type": "stat", "title": "Prédictions analysées (drift)",
+     "gridPos": {"x": 16, "y": 16, "w": 8, "h": 6},
+     "targets": [{"refId": "A", "expr": "drift_current_samples"}]}
+  ]
+}

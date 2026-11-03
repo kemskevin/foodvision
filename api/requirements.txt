@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+onnxruntime==1.19.2
+numpy==1.26.4
+pillow==10.4.0
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.9
+prometheus-client==0.21.0
+mlflow-skinny==2.16.2

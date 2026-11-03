@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+data/
+models/*
+!models/.gitkeep
+models_*/
+artifacts/
+mlruns/
+loadtest/report*.html
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+infra/terraform/.terraform.lock.hcl

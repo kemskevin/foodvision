@@ -1,0 +1,3 @@
+# Pour register.py / promote.py en local
+mlflow==2.16.2
+onnxruntime>=1.17

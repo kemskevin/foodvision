@@ -1,0 +1,2 @@
+locust==2.31.6
+pillow

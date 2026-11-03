@@ -1,0 +1,55 @@
+# Canary deployment : CANARY_PERCENT % des requêtes vers api_canary, le reste vers api (stable).
+# Le tirage se fait par requête ($request_id). CANARY_PERCENT doit être compris entre 1 et 99.
+split_clients "${request_id}" $api_backend {
+    ${CANARY_PERCENT}%    api_canary;
+    *                     api_stable;
+}
+
+# Scaling horizontal : "api" résout vers toutes les réplicas (round-robin).
+# Après un "docker compose up --scale", faire "nginx -s reload" (cf. make scale).
+upstream api_stable { server api:8000; }
+upstream api_canary { server api_canary:8000; }
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# ----- API (port 8080) -----
+server {
+    listen 8080;
+    client_max_body_size 6m;
+
+    location / {
+        proxy_pass http://$api_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 60s;
+        add_header X-Upstream $upstream_addr always;
+    }
+
+    location /metrics {
+        return 404;   # les métriques ne sont accessibles qu'en interne (Prometheus)
+    }
+}
+
+# ----- UI + rapports de drift (port 80) -----
+server {
+    listen 80;
+    client_max_body_size 6m;
+
+    location /reports/ {
+        alias /usr/share/nginx/reports/;
+        autoindex on;
+    }
+
+    location / {
+        proxy_pass http://ui:8501;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400;
+    }
+}

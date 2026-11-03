@@ -1,0 +1,7 @@
+evidently==0.4.40
+pandas==2.2.2
+numpy==1.26.4
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.9
+prometheus-client==0.21.0
+mlflow-skinny==2.16.2

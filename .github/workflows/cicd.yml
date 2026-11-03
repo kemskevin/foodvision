@@ -1,0 +1,90 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r api/requirements-dev.txt
+      - run: cd api && python -m pytest -q
+
+  build:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, ui, drift]
+    steps:
+      - uses: actions/checkout@v4
+      - id: vars
+        run: echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.repo }}/${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/${{ steps.vars.outputs.repo }}/${{ matrix.service }}:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - id: vars
+        run: echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Copie des fichiers de déploiement sur la VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: root
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "docker-compose.prod.yml,infra/nginx,monitoring"
+          target: /opt/foodvision
+
+      - name: Déploiement
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: root
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/foodvision
+            cat > .env <<EOF
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            ADMIN_TOKEN=${{ secrets.ADMIN_TOKEN }}
+            GRAFANA_PASSWORD=${{ secrets.GRAFANA_PASSWORD }}
+            REGISTRY=ghcr.io/${{ steps.vars.outputs.repo }}
+            IMAGE_TAG=${{ github.sha }}
+            API_REPLICAS=${{ vars.API_REPLICAS || '2' }}
+            CANARY_PERCENT=${{ vars.CANARY_PERCENT || '10' }}
+            EOF
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            sleep 10
+            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || true
+            docker image prune -f
+            curl -fsS http://localhost:8080/health

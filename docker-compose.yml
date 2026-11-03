@@ -1,0 +1,135 @@
+# Niveau 0 : toute la stack en local avec une seule commande -> docker compose up -d --build
+name: foodvision
+
+x-api-env: &api-env
+  DATABASE_URL: postgresql+psycopg2://mlops:${POSTGRES_PASSWORD:-mlops}@postgres:5432/mlops
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  MODEL_NAME: food-classifier
+  MODEL_VARIANT: ${MODEL_VARIANT:-int8}
+  ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-dev-token}
+  LOCAL_MODEL_DIR: /models
+  MODEL_REFRESH_SECONDS: "30"
+  ORT_THREADS: "2"
+  MLFLOW_HTTP_REQUEST_MAX_RETRIES: "2"
+  MLFLOW_HTTP_REQUEST_TIMEOUT: "15"
+
+x-api-healthcheck: &api-healthcheck
+  test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mlops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mlops}
+      POSTGRES_DB: mlops
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlops"]
+      interval: 5s
+      retries: 10
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.16.2
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+      --serve-artifacts
+    volumes:
+      - mlflowdata:/mlflow
+    ports:
+      - "5000:5000"
+
+  api:
+    build: ./api
+    image: foodvision-api:local
+    environment:
+      <<: *api-env
+      MODEL_ALIAS: production
+      DEPLOYMENT: stable
+    volumes:
+      - ./models:/models:ro
+    healthcheck: *api-healthcheck
+    depends_on:
+      postgres: {condition: service_healthy}
+      mlflow: {condition: service_started}
+
+  api_canary:
+    build: ./api
+    image: foodvision-api:local
+    environment:
+      <<: *api-env
+      MODEL_ALIAS: canary
+      MODEL_FALLBACK_ALIAS: production
+      DEPLOYMENT: canary
+    volumes:
+      - ./models:/models:ro
+    healthcheck: *api-healthcheck
+    depends_on:
+      postgres: {condition: service_healthy}
+      mlflow: {condition: service_started}
+
+  ui:
+    build: ./ui
+    image: foodvision-ui:local
+    environment:
+      API_URL: http://nginx:8080
+
+  nginx:
+    image: nginx:1.27-alpine
+    environment:
+      CANARY_PERCENT: ${CANARY_PERCENT:-10}
+    volumes:
+      - ./infra/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - reports:/usr/share/nginx/reports:ro
+    ports:
+      - "${UI_PORT:-80}:80"
+      - "${API_PORT:-8080}:8080"
+    depends_on: [api, api_canary, ui]
+
+  drift:
+    build: ./drift
+    image: foodvision-drift:local
+    environment:
+      DATABASE_URL: postgresql+psycopg2://mlops:${POSTGRES_PASSWORD:-mlops}@postgres:5432/mlops
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_HTTP_REQUEST_MAX_RETRIES: "2"
+      MODEL_NAME: food-classifier
+      LOCAL_MODEL_DIR: /models
+      REPORT_DIR: /reports
+      DRIFT_INTERVAL_SECONDS: "120"
+      DRIFT_MIN_SAMPLES: "30"
+    volumes:
+      - reports:/reports
+      - ./models:/models:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on: [prometheus]
+
+volumes:
+  pgdata:
+  mlflowdata:
+  reports:
+  grafanadata:

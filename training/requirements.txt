@@ -1,0 +1,9 @@
+# Entraînement (Colab a déjà torch / torchvision)
+torch
+torchvision
+onnx
+onnxruntime>=1.17
+pandas
+numpy
+pillow
+tqdm
