@@ -1,5 +1,6 @@
 import os
 
+import altair as alt
 import pandas as pd
 import requests
 import streamlit as st
@@ -8,7 +9,7 @@ DEFAULT_API_URL = os.getenv("API_URL", "http://localhost:8080")
 
 st.set_page_config(page_title="FoodVision", page_icon="🍽️", layout="centered")
 st.title("🍽️ FoodVision")
-st.caption("Classification de plats (Food-101) — modèle EfficientNet quantisé INT8 servi par FastAPI")
+st.caption("Classification de plats (Food-101) — modèle EfficientNet-B0 (ONNX) servi par FastAPI")
 
 with st.sidebar:
     st.header("Connexion")
@@ -33,7 +34,7 @@ uploaded = st.file_uploader("Choisis une photo de plat", type=["jpg", "jpeg", "p
 top_k = st.slider("Nombre de prédictions", 1, 10, 5)
 
 if uploaded:
-    st.image(uploaded, use_container_width=True)
+    st.image(uploaded, width=450)
     if st.button("Prédire", type="primary", disabled=not token):
         with st.spinner("Analyse en cours…"):
             try:
@@ -55,8 +56,18 @@ if uploaded:
             body = r.json()
             best = body["predictions"][0]
             st.subheader(f"{best['label'].replace('_', ' ').title()} — {best['score']:.1%}")
-            df = pd.DataFrame(body["predictions"]).set_index("label")
-            st.bar_chart(df["score"])
+            df = pd.DataFrame(body["predictions"])
+            df["label"] = df["label"].str.replace("_", " ")
+            chart = (
+                alt.Chart(df)
+                .mark_bar(color="#E4572E")
+                .encode(
+                    x=alt.X("score:Q", title="Probabilité", axis=alt.Axis(format="%")),
+                    y=alt.Y("label:N", sort="-x", title=None),
+                    tooltip=["label", alt.Tooltip("score:Q", format=".1%")],
+                )
+            )
+            st.altair_chart(chart, use_container_width=True)
             st.caption(f"Modèle {body['model_version']} · déploiement {body['deployment']} · "
                        f"{body['latency_ms']} ms")
     elif not token:

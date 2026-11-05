@@ -1,0 +1,6 @@
+#!/Users/kevin/Desktop/EFREI/26_27_Cours/MLOPs/foodvision/.venv/bin/python3.11
+import sys
+from onnxruntime.tools.onnxruntime_test import main
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(main())

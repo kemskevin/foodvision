@@ -5,7 +5,7 @@ x-api-env: &api-env
   DATABASE_URL: postgresql+psycopg2://mlops:${POSTGRES_PASSWORD:-mlops}@postgres:5432/mlops
   MLFLOW_TRACKING_URI: http://mlflow:5000
   MODEL_NAME: food-classifier
-  MODEL_VARIANT: ${MODEL_VARIANT:-int8}
+  MODEL_VARIANT: ${MODEL_VARIANT:-fp32}
   ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-dev-token}
   LOCAL_MODEL_DIR: /models
   MODEL_REFRESH_SECONDS: "30"
@@ -60,8 +60,8 @@ services:
       mlflow: {condition: service_started}
 
   api_canary:
-    build: ./api
-    image: foodvision-api:local
+    image: foodvision-api:local     # même image que "api" : construite une seule fois par le service api
+    pull_policy: never
     environment:
       <<: *api-env
       MODEL_ALIAS: canary
@@ -73,6 +73,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       mlflow: {condition: service_started}
+      api: {condition: service_started}
 
   ui:
     build: ./ui

@@ -6,7 +6,7 @@ x-api-env: &api-env
   DATABASE_URL: postgresql+psycopg2://mlops:${POSTGRES_PASSWORD}@postgres:5432/mlops
   MLFLOW_TRACKING_URI: http://mlflow:5000
   MODEL_NAME: food-classifier
-  MODEL_VARIANT: ${MODEL_VARIANT:-int8}
+  MODEL_VARIANT: ${MODEL_VARIANT:-fp32}
   ADMIN_TOKEN: ${ADMIN_TOKEN}
   LOCAL_MODEL_DIR: /models
   MODEL_REFRESH_SECONDS: "60"
