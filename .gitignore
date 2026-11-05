@@ -10,6 +10,6 @@ models_*/
 artifacts/
 mlruns/
 loadtest/report*.html
-infra/terraform/.terraform/
-infra/terraform/*.tfstate*
-infra/terraform/.terraform.lock.hcl
+**/.terraform/
+**/*.tfstate*
+**/.terraform.lock.hcl

@@ -58,7 +58,7 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VM_HOST }}
-          username: root
+          username: ${{ vars.VM_USER || 'root' }}
           key: ${{ secrets.VM_SSH_KEY }}
           source: "docker-compose.prod.yml,infra/nginx,monitoring"
           target: /opt/foodvision
@@ -67,7 +67,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
-          username: root
+          username: ${{ vars.VM_USER || 'root' }}
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             set -e

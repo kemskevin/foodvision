@@ -7,6 +7,8 @@ TRACKING  ?= http://localhost:5000
 BUNDLE    ?= models
 ADMIN_TOKEN ?= admin-dev-token
 N         ?= 3
+VM_USER   ?= root
+TF_DIR    ?= infra/terraform
 HOST      ?= http://localhost:8080
 USERS     ?= 50
 RATE      ?= 5
@@ -70,18 +72,18 @@ loadtest-drift: ## Envoie des images dégradées pour déclencher le drift
 	API_TOKEN=$(TOKEN) DRIFT_MODE=1 locust -f loadtest/locustfile.py --host $(HOST) --headless -u 10 -r 2 -t 2m --html loadtest/report_drift.html
 
 # ---------- Niveau 1/2 : infra + déploiement ----------
-tf-init: ## terraform init
-	cd infra/terraform && terraform init
+tf-init: ## terraform init (TF_DIR=infra/terraform-aws pour AWS)
+	cd $(TF_DIR) && terraform init
 
-tf-apply: ## Crée la VM Scaleway
-	cd infra/terraform && terraform apply
+tf-apply: ## Crée la VM (Scaleway par défaut, AWS avec TF_DIR=infra/terraform-aws)
+	cd $(TF_DIR) && terraform apply
 
 tf-destroy: ## Détruit la VM
-	cd infra/terraform && terraform destroy
+	cd $(TF_DIR) && terraform destroy
 
 tunnel: ## Tunnel SSH vers MLflow / Grafana / Prometheus de la VM : make tunnel IP=x.x.x.x
-	ssh -N -L 5000:localhost:5000 -L 3000:localhost:3000 -L 9090:localhost:9090 root@$(IP)
+	ssh -N -L 5000:localhost:5000 -L 3000:localhost:3000 -L 9090:localhost:9090 $(VM_USER)@$(IP)
 
 deploy: ## Déploiement manuel sans CI (build sur la VM) : make deploy IP=x.x.x.x
-	rsync -az --delete --exclude .git --exclude data --exclude 'infra/terraform/.terraform*' --exclude 'infra/terraform/*.tfstate*' ./ root@$(IP):/opt/foodvision/
-	ssh root@$(IP) "cd /opt/foodvision && docker compose up -d --build"
+	rsync -az --delete --exclude .git --exclude data --exclude '.terraform*' --exclude '*.tfstate*' --exclude .venv ./ $(VM_USER)@$(IP):/opt/foodvision/
+	ssh $(VM_USER)@$(IP) "cd /opt/foodvision && docker compose up -d --build"
